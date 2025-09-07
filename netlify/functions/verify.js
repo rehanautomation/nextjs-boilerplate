@@ -1,51 +1,58 @@
-// pages/api/verify.js
+// netlify/functions/verify.js
 
-// Temporary in-memory store (resets on server restart)
-const verificationResults = {};
+export async function handler(event, context) {
+  try {
+    if (event.httpMethod === "POST") {
+      // Parse request body
+      const body = JSON.parse(event.body);
 
-export default async function handler(req, res) {
-  if (req.method === "POST") {
-    let body = req.body;
+      // Example: extract email + code from body
+      const { email, code } = body;
 
-    // If body is a string (from urlencoded), parse it
-    if (typeof body === "string") {
-      try {
-        body = JSON.parse(body); // If it's actually JSON
-      } catch {
-        body = Object.fromEntries(new URLSearchParams(body)); // If it's form-encoded
+      if (!email || !code) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            success: false,
+            message: "Email and code are required.",
+          }),
+        };
+      }
+
+      // Example: verify code (you can replace with real logic)
+      if (code === "123456") {
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            success: true,
+            message: "Verification successful!",
+            email,
+          }),
+        };
+      } else {
+        return {
+          statusCode: 401,
+          body: JSON.stringify({
+            success: false,
+            message: "Invalid code.",
+          }),
+        };
       }
     }
 
-    const { email, status, verificationCode } = body;
-
-    if (!email) {
-      console.error("Webhook missing email:", body);
-      return res.status(400).json({ message: "Email missing in payload" });
-    }
-
-    // Store result for this email
-    verificationResults[email] = {
-      status,
-      verificationCode,
-      timestamp: Date.now(),
+    // Handle unsupported HTTP methods
+    return {
+      statusCode: 405,
+      body: JSON.stringify({ success: false, message: "Method Not Allowed" }),
     };
-
-    console.log(`✅ Stored result for ${email}: ${status}`);
-
-    return res.status(200).json({ message: "Result stored" });
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        success: false,
+        message: "Server Error",
+        error: error.message,
+      }),
+    };
   }
-
-  if (req.method === "GET") {
-    const { email } = req.query;
-
-    if (verificationResults[email]) {
-      const result = verificationResults[email];
-      delete verificationResults[email]; // optional cleanup
-      return res.status(200).json(result);
-    }
-
-    return res.status(404).json({ message: "No result yet" });
-  }
-
-  return res.status(405).json({ message: "Method not allowed" });
 }
