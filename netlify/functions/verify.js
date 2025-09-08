@@ -11,24 +11,35 @@ setInterval(() => {
   }
 }, 600000);
 
-export default async function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+exports.handler = async (event, context) => {
+  // Set CORS headers for all responses
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json'
+  };
   
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers,
+      body: ''
+    };
   }
 
-  if (req.method === 'POST') {
+  if (event.httpMethod === 'POST') {
     // GoHighLevel sends verification result
     try {
-      const { email, success } = req.body;
+      const body = JSON.parse(event.body);
+      const { email, success } = body;
       
       if (!email || success === undefined) {
-        return res.status(400).json({ error: 'Email and success are required' });
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Email and success are required' })
+        };
       }
       
       // Store the verification result
@@ -40,46 +51,74 @@ export default async function handler(req, res) {
       console.log(`Stored verification for ${email}: ${success}`);
       
       // Respond to GHL (though GHL doesn't need response)
-      res.status(200).json({ message: 'Verification result stored' });
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ message: 'Verification result stored' })
+      };
       
     } catch (error) {
       console.error('Error storing verification:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Internal server error' })
+      };
     }
   }
   
-  else if (req.method === 'GET') {
+  else if (event.httpMethod === 'GET') {
     // Framer fetches verification result
     try {
-      const { email } = req.query;
+      const { email } = event.queryStringParameters || {};
       
       if (!email) {
-        return res.status(400).json({ error: 'Email parameter is required' });
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Email parameter is required' })
+        };
       }
       
       const result = verificationData.get(email);
       
       if (!result) {
-        return res.status(404).json({ error: 'No verification result found for this email' });
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'No verification result found for this email' })
+        };
       }
       
       // Return the verification result
-      res.status(200).json({
-        email: email,
-        success: result.success,
-        timestamp: result.timestamp
-      });
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          email: email,
+          success: result.success,
+          timestamp: result.timestamp
+        })
+      };
       
       // Optional: Delete after fetching to prevent reuse
       // verificationData.delete(email);
       
     } catch (error) {
       console.error('Error fetching verification:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Internal server error' })
+      };
     }
   }
   
   else {
-    res.status(405).json({ error: 'Method not allowed' });
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
   }
-}
+};
